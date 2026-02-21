@@ -2,7 +2,7 @@
   <img src="frontend/public/logo.png" alt="OpsAgent Logo" width="80" />
 </p>
 
-<h1 align="center">OpsAgent — AI-Powered Autonomous Operations Assistant</h1>
+<h1 align="center">AutoMate — AI-Powered Autonomous Operations Assistant</h1>
 
 <p align="center">
   <em>An intelligent, always-on operations assistant for small businesses that automates customer communication, order processing, payment tracking, and inventory management using AI and workflow automation.</em>
@@ -21,7 +21,7 @@
 
 ## 🚀 Overview
 
-**OpsAgent** transforms how small businesses handle daily operations. Instead of manually logging orders, tracking payments, and monitoring inventory, OpsAgent **automatically ingests customer messages from WhatsApp and Gmail**, classifies them using **Google Gemini AI**, routes them through intelligent **n8n workflows**, and surfaces actionable insights on a beautiful **real-time dashboard**.
+**AutoMate** transforms how small businesses handle daily operations. Instead of manually logging orders, tracking payments, and monitoring inventory, OpsAgent **automatically ingests customer messages from WhatsApp and Gmail**, classifies them using **Google Gemini AI**, routes them through intelligent **n8n workflows**, and surfaces actionable insights on a beautiful **real-time dashboard**.
 
 > **Core Principle:** The shopkeeper should never have to manually enter data that a customer already communicated. If a customer says _"send 10 packets"_, that IS the order — the system processes it automatically.
 
@@ -297,3 +297,4 @@ graph TB
 ## 📄 License
 
 This project was developed as part of the **Invictus Hackathon**. All rights reserved by Team SR-21.
+
