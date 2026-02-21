@@ -1,0 +1,494 @@
+{
+    "name": "OpsAgent Universal Workflow",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "whatsapp",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                0,
+                240
+            ],
+            "name": "WhatsApp Webhook"
+        },
+        {
+            "parameters": {
+                "pollTimes": {
+                    "item": [
+                        {
+                            "mode": "everyMinute"
+                        }
+                    ]
+                },
+                "filters": {
+                    "readStatus": "unread"
+                }
+            },
+            "type": "n8n-nodes-base.gmailTrigger",
+            "typeVersion": 1,
+            "position": [
+                0,
+                0
+            ],
+            "name": "Gmail Trigger (Unread)"
+        },
+        {
+            "parameters": {
+                "keepOnlySet": true,
+                "values": {
+                    "string": [
+                        {
+                            "name": "message",
+                            "value": "={{ $json.snippet || $json.body.message || $json.message || $json.text || $json.body.text || $json.body.entry[0].changes[0].value.messages[0].text.body }}"
+                        },
+                        {
+                            "name": "source",
+                            "value": "={{ $json.id ? 'gmail' : 'whatsapp' }}"
+                        },
+                        {
+                            "name": "sender_info",
+                            "value": "={{ $json.From || $json.from || $json.body.from || $json.sender || $json.body.sender || $json.body.entry[0].changes[0].value.messages[0].from || 'Unknown' }}"
+                        },
+                        {
+                            "name": "sender_name",
+                            "value": "={{ ($json.From || $json.from) ? ($json.From || $json.from).split('<')[0].trim() : ($json.body.entry[0].changes[0].value.contacts[0].profile.name || 'Guest') }}"
+                        },
+                        {
+                            "name": "sender_email",
+                            "value": "={{ ($json.From || $json.from) ? (($json.From || $json.from).match(/<([^>]+)>/) ? ($json.From || $json.from).match(/<([^>]+)>/)[1] : '') : '' }}"
+                        },
+                        {
+                            "name": "sender_phone",
+                            "value": "={{ $json.body.entry[0].changes[0].value.messages[0].from || '' }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 2,
+            "position": [
+                220,
+                120
+            ],
+            "name": "Normalize Input"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "value": "YOUR_GEMINI_API_KEY_HERE"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "contentType": "json",
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "contents",
+                            "value": "={{ [{\"parts\": [{\"text\": \"Analyze this message from a customer.\\nSource: \" + $json.source + \"\\nSender Name: \" + $json.sender_name + \"\\nSender Email: \" + $json.sender_email + \"\\nMessage: \\\"\" + $json.message + \"\\\"\\n\\nClassify the intent into ONE of: ['order', 'payment', 'complaint', 'query'].\\n\\nExtract JSON:\\n{\\n  \\\"intent\\\": \\\"string\\\",\\n  \\\"customer\\\": { \\\"name\\\": string, \\\"phone\\\": string, \\\"email\\\": string },\\n  \\\"order_items\\\": [{ \\\"name\\\": string, \\\"quantity\\\": number, \\\"price\\\": number }],\\n  \\\"amount\\\": number,\\n  \\\"complaint_issue\\\": string,\\n  \\\"query_text\\\": string\\n}\\n\\nReturn JSON only.\"}]}] }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                440,
+                120
+            ],
+            "name": "Gemini API (HTTP)"
+        },
+        {
+            "parameters": {
+                "jsCode": "const raw = $input.all()[0].json.candidates[0].content.parts[0].text;\n// Clean markdown code blocks if present\nconst jsonString = raw.replace(/```json/g, '').replace(/```/g, '').trim();\nreturn JSON.parse(jsonString);"
+            },
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                120
+            ],
+            "name": "Parse Gemini Resp"
+        },
+        {
+            "parameters": {
+                "url": "https://roni-unchannelled-bridgette.ngrok-free.dev/api/customers",
+                "sendQuery": true,
+                "queryParameters": {
+                    "parameters": [
+                        {
+                            "name": "search",
+                            "value": "={{ $('Parse Gemini Resp').first().json.customer.name || $('Normalize Input').first().json.sender_name }}"
+                        },
+                        {
+                            "name": "limit",
+                            "value": "1"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "alwaysOutputData": true,
+            "continueOnFail": true,
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                880,
+                120
+            ],
+            "name": "[Order] Lookup Customer"
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.id }}",
+                            "operation": "isNotEmpty"
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                120
+            ],
+            "name": "Customer Exists?"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://roni-unchannelled-bridgette.ngrok-free.dev/api/customers",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "name",
+                            "value": "={{ $('Normalize Input').first().json.body?.customer?.name || $('Parse Gemini Resp').first().json.customer.name || $('Normalize Input').first().json.sender_name }}"
+                        },
+                        {
+                            "name": "phone",
+                            "value": "={{ $('Normalize Input').first().json.body?.customer?.phone || $('Parse Gemini Resp').first().json.customer.phone || $('Normalize Input').first().json.sender_phone }}"
+                        },
+                        {
+                            "name": "email",
+                            "value": "={{ $('Normalize Input').first().json.body?.customer?.email || $('Parse Gemini Resp').first().json.customer.email || $('Normalize Input').first().json.sender_email }}"
+                        },
+                        {
+                            "name": "source",
+                            "value": "n8n_auto"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1320,
+                240
+            ],
+            "name": "Create Customer"
+        },
+        {
+            "parameters": {
+                "dataType": "string",
+                "value1": "={{ $('Parse Gemini Resp').first().json.intent }}",
+                "rules": {
+                    "rules": [
+                        {
+                            "value2": "order",
+                            "output": 0
+                        },
+                        {
+                            "value2": "payment",
+                            "output": 1
+                        },
+                        {
+                            "value2": "complaint",
+                            "output": 2
+                        },
+                        {
+                            "value2": "query",
+                            "output": 3
+                        }
+                    ]
+                }
+            },
+            "type": "n8n-nodes-base.switch",
+            "typeVersion": 1,
+            "position": [
+                1760,
+                120
+            ],
+            "name": "Intent Switch"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://roni-unchannelled-bridgette.ngrok-free.dev/api/orders",
+                "simplify": true,
+                "sendBody": true,
+                "specifyBody": "json",
+                "jsonBody": "={{ { \"customer_id\": $json.id, \"items\": $('Parse Gemini Resp').first().json.order_items, \"total\": $('Parse Gemini Resp').first().json.order_items.reduce((sum, item) => sum + (item.price * item.quantity), 0), \"status\": \"pending\", \"source\": \"n8n_ai\" } }}",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2100,
+                0
+            ],
+            "name": "[Order] Create Order"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://roni-unchannelled-bridgette.ngrok-free.dev/api/payments",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "amount",
+                            "value": "={{ $('Parse Gemini Resp').first().json.amount }}"
+                        },
+                        {
+                            "name": "status",
+                            "value": "received"
+                        },
+                        {
+                            "name": "source",
+                            "value": "n8n_ai"
+                        },
+                        {
+                            "name": "customer_id",
+                            "value": "={{ $json.id }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2100,
+                200
+            ],
+            "name": "[Payment] Log Payment"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://roni-unchannelled-bridgette.ngrok-free.dev/api/dashboard/alerts",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "type",
+                            "value": "complaint"
+                        },
+                        {
+                            "name": "severity",
+                            "value": "critical"
+                        },
+                        {
+                            "name": "message",
+                            "value": "={{ ($json.name || 'Unknown') + ': ' + $('Parse Gemini Resp').first().json.complaint_issue }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2100,
+                400
+            ],
+            "name": "[Complaint] Raise Alert"
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "https://roni-unchannelled-bridgette.ngrok-free.dev/api/dashboard/alerts",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "type",
+                            "value": "query"
+                        },
+                        {
+                            "name": "severity",
+                            "value": "info"
+                        },
+                        {
+                            "name": "message",
+                            "value": "={{ ($json.name || 'Unknown') + ': ' + ($('Parse Gemini Resp').first().json.query_text || 'Customer has a question') }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                2100,
+                600
+            ],
+            "name": "[Query] Log Inquiry"
+        }
+    ],
+    "connections": {
+        "WhatsApp Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Normalize Input",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gmail Trigger (Unread)": {
+            "main": [
+                [
+                    {
+                        "node": "Normalize Input",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalize Input": {
+            "main": [
+                [
+                    {
+                        "node": "Gemini API (HTTP)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Gemini API (HTTP)": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Gemini Resp",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Gemini Resp": {
+            "main": [
+                [
+                    {
+                        "node": "[Order] Lookup Customer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "[Order] Lookup Customer": {
+            "main": [
+                [
+                    {
+                        "node": "Customer Exists?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Customer Exists?": {
+            "main": [
+                [
+                    {
+                        "node": "Intent Switch",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Create Customer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Create Customer": {
+            "main": [
+                [
+                    {
+                        "node": "Intent Switch",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Intent Switch": {
+            "main": [
+                [
+                    {
+                        "node": "[Order] Create Order",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "[Payment] Log Payment",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "[Complaint] Raise Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "[Query] Log Inquiry",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
