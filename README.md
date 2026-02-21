@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="frontend/public/logo.png" alt="OpsAgent Logo" width="80" />
-</p>
-
 <h1 align="center">AutoMate — AI-Powered Autonomous Operations Assistant</h1>
 
 <p align="center">
@@ -297,4 +293,5 @@ graph TB
 ## 📄 License
 
 This project was developed as part of the **Invictus Hackathon**. All rights reserved by Team SR-21.
+
 
